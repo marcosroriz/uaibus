@@ -1,0 +1,8 @@
+# Reading WiFi packages
+pyshark
+
+# Command Line
+click
+
+# Parsing data
+numpy
