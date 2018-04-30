@@ -4,54 +4,58 @@
 from scapy.all import sniff
 from scapy.layers.dot11 import Dot11
 from concurrent.futures import ThreadPoolExecutor
-from threading import RLock
-
+import logging
+import queue
 
 class Scan:
-    """Scan a wireless interface for passenger data
+    """Scan a wireless interface for passenger' WiFi ProbeRequest data
 
     Attributes:
         wiface      The wireless interface that we are scanning
-        pkgcount    The total number of probe requests packages that were scanned
-        commands    A list of commands that will be executed when handling each new packet
-        threadpool  A thread pool to spawn threads to handle each new packet
-        lock        A reentering lock to control pkgcount accesses
+        scheduler  A thread pool to handles in parallel the pkg parsing
+        pkgqueue    A queue were the passenger's WiFi probe request pkgs are stored
     """
 
-    def __init__(self, wiface="wlp2s0mon", poolsize=4):
+    def __init__(self, wiface, poolsize=4):
         """Initializes a new Scanner instance.
 
         Args:
             wiface: The wireless interface to scan
-            poolsize: the number of thread to use when handling packages
+            poolsize: the number of threads to use to handle each pool
+            pkgqueue: a queue to hold the pkgs
         """
-        self.wiface = wiface
-        self.pkgcount = 0
-        self.commands = []
-        self.threadpool = ThreadPoolExecutor(max_workers=poolsize)
-        self.lock = RLock()
+        self.wiface     = wiface
+        self.scheduler  = ThreadPoolExecutor(max_workers=poolsize, thread_name_prefix="ScanThread")
+        self.pkgqueue   = queue.Queue()
 
     def pkghandler(self, pkt):
         if pkt.haslayer(Dot11):
             if pkt.type == 0 and pkt.subtype == 4:
                 if pkt.addr2 is not None:
-                    self.lock.acquire()
-                    print("Pacote ", self.pkgcount, "------------------------")
-                    self.pkgcount = self.pkgcount + 1
-                    self.lock.release()
+                    try:
+                        macaddr  = pkt.addr2
+                        rssistr  = -(256 - ord(pkt.notdecoded[-4:-3]))
+                        destaddr = pkt.info if pkt.info is not None else "undef"
 
-                    sig_str = -(256 - ord(pkt.notdecoded[-2:-1]))
-                    sig_str2 = -(256 - ord(pkt.notdecoded[-4:-3]))
-                    print("addr2", pkt.addr2)
-                    print("RSSI SHORT", sig_str)
-                    print("RSSI SHORT", sig_str2)
+                        pkgtuple = (macaddr, rssistr, destaddr)
+                        self.pkgqueue.put(pkgtuple)
+                        logger.info("Adding pkg data to queue: " + pkgtuple)
+                    except IndexError:
+                        # TODO: do this with logging
+                        print("Index Error when parsing PKG")
+
+    def readpacket(self):
+        return self.pkgqueue.get()
 
     def poolhandler(self, pkt):
-        self.threadpool.submit(self.pkghandler, pkt)
+        self.scheduler.submit(self.pkghandler, pkt)
 
     def sniff(self):
         sniff(iface=self.wiface, prn=self.poolhandler)
 
 if __name__ == '__main__':
-    scan = Scan("wlp2s0mon", 4)
+    logger = logging.getLogger("uaibus.scan")
+    logger.setLevel(logging.DEBUG)
+
+    scan = Scan("wlp2s0mon")
     scan.sniff()
