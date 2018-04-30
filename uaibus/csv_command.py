@@ -3,7 +3,10 @@
 """CSV log module."""
 import csv
 import datetime
+import logging
 import os
+from threading import RLock
+
 
 class CSVCommand:
     """CSV command that writes the combined data of passenger's (WiFi ProbeRequest and GPS data)
@@ -15,23 +18,39 @@ class CSVCommand:
     """
 
     def __init__(self, output):
-        current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        outname  = "out" + current_date + ".csv"
+        log_date = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        outname  = "uaibus.out." + log_date + ".csv"
         filename = os.path.join(output, outname)
 
-        self.csvfile   = open(filename)
+        self.csvfile   = open(filename, mode="xt")
         self.csvwriter = csv.writer(self.csvfile)
-        self.logcount  = 0
+        self.pktcount  = 0
+        self.pktlock   = RLock()
+        self.logger    = logging.getLogger("uaibus.csv_command")
 
         # Write Header
-        self.csvwriter.writerow(["date,mac,rssi,dest,lat,lng"])
+        self.csvwriter.writerow(["pkgnumber", "date", "mac", "rssi", "dest", "lat", "lng"])
 
 
     def execute(self, data):
-        # Write
-        self.csvwriter.writerow([data])
-        self.csvwriter.flush()
+        # Increment the pkt count
+        self.pktlock.acquire()
+        current_pkt_count = self.pktcount
+        self.pktcount = self.pktcount + 1
+        self.pktlock.release()
+
+        # Put in csv format
+        current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        csv_data = [current_pkt_count] + [current_date] + [x for x in data]
+
+        # Write to CSV
+        self.csvwriter.writerow(csv_data)
+        self.csvfile.flush()
+
+        # Write to CLI
+        self.logger.info(csv_data)
 
     def close(self):
+        self.csvfile.flush()
         self.csvfile.close()
         self.csvwriter.close()

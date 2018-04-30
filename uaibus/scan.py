@@ -25,8 +25,9 @@ class Scan:
             pkgqueue: a queue to hold the pkgs
         """
         self.wiface     = wiface
-        self.scheduler  = ThreadPoolExecutor(max_workers=poolsize, thread_name_prefix="ScanThread")
+        self.scheduler  = ThreadPoolExecutor(max_workers=poolsize)
         self.pkgqueue   = queue.Queue()
+        self.logger     = logging.getLogger("uaibus.scan")
 
     def pkghandler(self, pkt):
         if pkt.haslayer(Dot11):
@@ -39,7 +40,9 @@ class Scan:
 
                         pkgtuple = (macaddr, rssistr, destaddr)
                         self.pkgqueue.put(pkgtuple)
-                        logger.info("Adding pkg data to queue: " + pkgtuple)
+
+                        pkgstr = str(macaddr) + "," + str(rssistr) + "," + str(destaddr)
+                        self.logger.info("Adding pkg data to queue: " + pkgstr)
                     except IndexError:
                         # TODO: do this with logging
                         print("Index Error when parsing PKG")
@@ -49,6 +52,7 @@ class Scan:
 
     def poolhandler(self, pkt):
         self.scheduler.submit(self.pkghandler, pkt)
+        # self.pkghandler(pkt)
 
     def sniff(self):
         sniff(iface=self.wiface, prn=self.poolhandler)
