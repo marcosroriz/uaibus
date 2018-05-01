@@ -29,7 +29,9 @@ class CSVCommand:
         self.logger    = logging.getLogger("uaibus.csv_command")
 
         # Write Header
-        self.csvwriter.writerow(["pkgnumber", "date", "mac", "rssi", "dest", "lat", "lng"])
+        self.csvwriter.writerow(["pkgnumber", "date", "mac", "rssi", "dest",
+                                 "lat", "lng", "alt", "speed", "errorlat",
+                                 "errorlng", "erroralt", "errorspeed"])
 
 
     def execute(self, data):
@@ -41,7 +43,7 @@ class CSVCommand:
 
         # Put in csv format
         current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        csv_data = [current_pkt_count] + [current_date] + [x for x in data]
+        csv_data = [current_pkt_count] + [current_date] + data
 
         # Write to CSV
         self.csvwriter.writerow(csv_data)

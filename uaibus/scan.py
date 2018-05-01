@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 
 """Scan module."""
-from scapy.all import sniff
-from scapy.layers.dot11 import Dot11
-from concurrent.futures import ThreadPoolExecutor
 import logging
 import queue
+from concurrent.futures import ThreadPoolExecutor
+
+from scapy.all import sniff
+from scapy.layers.dot11 import Dot11
+
 
 class Scan:
     """Scan a wireless interface for passenger' WiFi ProbeRequest data
 
     Attributes:
-        wiface      The wireless interface that we are scanning
-        scheduler  A thread pool to handles in parallel the pkg parsing
-        pkgqueue    A queue were the passenger's WiFi probe request pkgs are stored
+        wiface     The wireless interface that we are scanning
+        scheduler  A thread pool to handles in parallel the pkt parsing
+        pktqueue   A queue were the passenger's probe request pkts are stored
     """
 
     def __init__(self, wiface, poolsize=4):
@@ -22,40 +24,41 @@ class Scan:
         Args:
             wiface: The wireless interface to scan
             poolsize: the number of threads to use to handle each pool
-            pkgqueue: a queue to hold the pkgs
+            pktqueue: a queue to hold the pkts
         """
-        self.wiface     = wiface
-        self.scheduler  = ThreadPoolExecutor(max_workers=poolsize)
-        self.pkgqueue   = queue.Queue()
-        self.logger     = logging.getLogger("uaibus.scan")
+        self.wiface = wiface
+        self.scheduler = ThreadPoolExecutor(max_workers=poolsize)
+        self.pktqueue = queue.Queue()
+        self.logger = logging.getLogger("uaibus.scan")
 
-    def pkghandler(self, pkt):
+    def pkthandler(self, pkt):
         if pkt.haslayer(Dot11):
             if pkt.type == 0 and pkt.subtype == 4:
                 if pkt.addr2 is not None:
                     try:
-                        macaddr  = pkt.addr2
-                        rssistr  = -(256 - ord(pkt.notdecoded[-4:-3]))
+                        macaddr = pkt.addr2
+                        rssistr = -(256 - ord(pkt.notdecoded[-4:-3]))
                         destaddr = pkt.info if pkt.info is not None else "undef"
 
-                        pkgtuple = (macaddr, rssistr, destaddr)
-                        self.pkgqueue.put(pkgtuple)
+                        pktdata = [macaddr, rssistr, destaddr]
+                        self.pktqueue.put(pktdata)
 
-                        pkgstr = str(macaddr) + "," + str(rssistr) + "," + str(destaddr)
-                        self.logger.info("Adding pkg data to queue: " + pkgstr)
+                        pktstr = str(macaddr) + "," + str(rssistr) + "," + str(destaddr)
+                        self.logger.info("Adding pkt data to queue: " + pktstr)
                     except IndexError:
                         # TODO: do this with logging
-                        print("Index Error when parsing PKG")
+                        print("Index Error when parsing pkt")
 
     def readpacket(self):
-        return self.pkgqueue.get()
+        return self.pktqueue.get()
 
     def poolhandler(self, pkt):
-        self.scheduler.submit(self.pkghandler, pkt)
-        # self.pkghandler(pkt)
+        self.scheduler.submit(self.pkthandler, pkt)
+        # self.pkthandler(pkt)
 
     def sniff(self):
         sniff(iface=self.wiface, prn=self.poolhandler)
+
 
 if __name__ == '__main__':
     logger = logging.getLogger("uaibus.scan")

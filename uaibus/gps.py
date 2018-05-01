@@ -16,6 +16,8 @@ class GPS:
     """
 
     def __init__(self):
+        self.lastposition = None
+        self.lasttimeupdate = datetime.datetime.now()
         self.logger = logging.getLogger("uaibus.gps")
 
     def connect(self):
@@ -24,31 +26,41 @@ class GPS:
         except Exception:
             logging.error("Could not connect to gpsd daemon")
 
-    def readposition(self):
-        position = gpsd.get_current()
-        self.lastposition = position
-        self.lasttimeupdate = datetime.datetime.now()
-
+    def readpacket(self):
         # [lat, lng, alt, speed, errorlat, errorlng, erroralt, errorspeed]
-        posdata = [None] * 8
+        pospkt = [None] * 8
+
+        # Try to get position
+        position = None
         try:
-            if position.mode >= 2:
-                # Location Measurements
-                posdata[0] = position.lat
-                posdata[1] = position.lon
-                posdata[3] = position.hspeed
+            position = gpsd.get_current()
+            self.lastposition = position
+            self.lasttimeupdate = datetime.datetime.now()
+        except Exception:
+            self.logger.error("Error getting position, using last position")
+            position = self.lastposition
 
-                # Error Measurements
-                posdata[4] = position.error["y"]
-                posdata[5] = position.error["x"]
-                posdata[7] = position.error["s"]
+        # Parse position if not none
+        try:
+            if position is not None:
+                # Grab latitude, longitude and speed data
+                if position.mode >= 2:
+                    # Location Measurements
+                    pospkt[0] = position.lat
+                    pospkt[1] = position.lon
+                    pospkt[3] = position.hspeed
 
-            # Check if Altitude is present
-            if position.mode >= 3:
-                posdata[2] = position.alt
-                posdata[6] = position.error['v']
+                    # Error Measurements
+                    pospkt[4] = position.error["y"]
+                    pospkt[5] = position.error["x"]
+                    pospkt[7] = position.error["s"]
+
+                # Check if Altitude is present
+                if position.mode >= 3:
+                    pospkt[2] = position.alt
+                    pospkt[6] = position.error['v']
         except Exception as ex:
             self.logger.error("Error when reading GPS data")
             self.logger.error(ex)
 
-        return posdata
+        return pospkt

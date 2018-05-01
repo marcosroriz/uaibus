@@ -7,17 +7,19 @@ import click
 import logging
 import threading
 from uaibus.scan import Scan
+from uaibus.gps import GPS
 from uaibus.csv_command import CSVCommand
 from concurrent.futures import ThreadPoolExecutor
 
+
 class UaiController:
-    def __init__(self, scan, output, gps=None):
+    def __init__(self, scan, gps, output):
         self.scan = scan
         self.gps = gps
         self.commands = []
         self.scheduler = ThreadPoolExecutor(max_workers=4)
 
-    def handledata(self, pkt):
+    def handlepkt(self, pkt):
         data = pkt
         for c in self.commands:
             c.execute(data)
@@ -26,19 +28,26 @@ class UaiController:
         self.commands.append(command)
 
     def boot(self):
+        # Start GPS
+        self.gps.connect()
+
+        # Start WiFi Scan
         t = threading.Thread(target=self.scan.sniff)
         t.start()
 
     def loop(self):
         try:
             while True:
-                # Read pkt data from scanner
-                pkt = self.scan.readpacket()
+                # Read pkt data from scanner and gps
+                wifipkt = self.scan.readpacket()
+                gpspkt  = self.gps.readpacket()
 
-                # Now, we need to combine this data with gps data
-                # Let's spawn a thread to do this
-                self.scheduler.submit(self.handledata, pkt)
-                # self.handledata(pkt)
+                # Now, let's combine these data pkts
+                pkt = wifipkt + gpspkt
+
+                # Let's spawn a thread to handle output
+                self.scheduler.submit(self.handlepkt, pkt)
+                # self.handlepkt(pkt)
         except KeyboardInterrupt:
             # TODO: Stop all commands, scanner and gps
             print('Interrupting!')
@@ -64,8 +73,11 @@ def main(wiface, gpsfile, usecli, usecsv, output):
     # Create our scanner
     scan = Scan(wiface)
 
+    # Create GPS module
+    gps = GPS()
+
     # Create our controller
-    controller = UaiController(scan, output)
+    controller = UaiController(scan, gps, output)
 
     # Using CLI output?
     if usecli:
@@ -81,6 +93,7 @@ def main(wiface, gpsfile, usecli, usecsv, output):
 
     # Enter main loop
     controller.loop()
+
 
 if __name__ == "__main__":
     main()
