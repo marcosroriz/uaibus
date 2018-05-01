@@ -1,5 +1,9 @@
 # Reading WiFi packages
 pyshark
+scapy
+
+# Reading GPS csv_data
+gpsd-py3
 
 # Command Line
 click
