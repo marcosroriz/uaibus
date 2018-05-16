@@ -2,7 +2,6 @@
 UaiBus
 ======
 
-
 .. image:: https://img.shields.io/pypi/v/uaibus.svg
         :target: https://pypi.python.org/pypi/uaibus
 

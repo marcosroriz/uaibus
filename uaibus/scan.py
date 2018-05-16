@@ -45,9 +45,12 @@ class Scan:
 
                         pktstr = str(macaddr) + "," + str(rssistr) + "," + str(destaddr)
                         self.logger.info("Adding pkt data to queue: " + pktstr)
-                    except IndexError:
-                        # TODO: do this with logging
-                        print("Index Error when parsing pkt")
+                    except IndexError as iex:
+                        self.logger.error("Index Error when parsing pkt")
+                        self.logger.error(iex)
+                    except Exception as ex:
+                        self.logger.error("Received an error when handling pkg")
+                        self.logger.error(ex)
 
     def readpacket(self):
         return self.pktqueue.get()

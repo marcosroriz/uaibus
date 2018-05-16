@@ -18,6 +18,7 @@ class UaiController:
         self.gps = gps
         self.commands = []
         self.scheduler = ThreadPoolExecutor(max_workers=4)
+        self.logger = logging.getLogger("uaibus")
 
     def handlepkt(self, pkt):
         data = pkt
@@ -48,13 +49,16 @@ class UaiController:
                 # Let's spawn a thread to handle output
                 self.scheduler.submit(self.handlepkt, pkt)
                 # self.handlepkt(pkt)
-        except KeyboardInterrupt:
-            # TODO: Stop all commands, scanner and gps
-            print('Interrupting!')
+        except KeyboardInterrupt as kex:
+            self.logger.error("Keyboard Interrupt")
+            self.logger.error(kex)
+        except Exception as ex:
+            self.logger.error("Received an exception")
+            self.logger.error(ex)
 
 
 def setuplog():
-    log_msg_format = '%(message)s'
+    log_msg_format = '%(asctime)s :: %(name)20s :: %(message)s'
     log_date_format = '%Y-%m-%d %H:%M:%S'
     logging.basicConfig(format=log_msg_format, datefmt=log_date_format)
     logger = logging.getLogger("uaibus")
