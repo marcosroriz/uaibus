@@ -7,7 +7,7 @@
 import unittest
 from click.testing import CliRunner
 
-from uaibus import uaibus
+from uaibus import scan
 from uaibus import cli
 
 
