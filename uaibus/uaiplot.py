@@ -4,6 +4,7 @@
 from math import atan2, radians, cos, sin, asin, sqrt
 import click
 import csv
+import random
 import datetime
 import folium
 import folium.plugins
@@ -83,10 +84,15 @@ def getlog(logfile, maxrssi):
                 if rssi >= maxrssi:
                     passengerdata = (date, lat, lng, mac, rssi, speed)
                     tracker[mac] = {}
+                    tracker[mac]["count"] = 0
                     tracker[mac]["log"]   = [passengerdata]
                     tracker[mac]["first"] = passengerdata
                     tracker[mac]["last"]  = passengerdata
+                    tracker[mac]["points"] = [(lat, lng)]
             else:
+                tracker[mac]["count"] = tracker[mac]["count"] + 1
+                tracker[mac]["points"].append((lat, lng))
+
                 tracker[mac]["log"].append(passengerdata)
                 tracker[mac]["last"] = passengerdata
 
@@ -113,19 +119,27 @@ def main(inlog, instops, outlog, maxrssi):
     # Analyse the data
     # Plot the data
     map = folium.Map(location=[-16.68228, -49.2571096], zoom_start=12) # tiles='Stamen Terrain'
-    mcluster = folium.plugins.MarkerCluster().add_to(map)
+    # mcluster = folium.plugins.MarkerCluster().add_to(map)
 
     odmatrix   = np.zeros((len(stops), len(stops)))
     termmatrix = np.zeros((len(stops), len(stops)))
 
+    colors = ['red', 'green', 'purple', 'orange', 'darkred', 'lightred', 'beige', 'darkblue', 'darkgreen',
+              'cadetblue', 'darkpurple', 'white', 'pink', 'lightblue', 'lightgreen', 'gray', 'black', 'lightgray']
+
     for mac, trackdata in tracker.items():
         firstdata = trackdata["first"]
         lastdata  = trackdata["last"]
+        pkgcount  = trackdata["count"]
+        pkgpoints = trackdata["points"]
 
         fdate, flat, flng, fmac, frssi, fspeed = firstdata
         ldate, llat, llng, lmac, lrssi, lspeed = lastdata
+        dist = distance(flat, flng, llat, llng)
+        print(fmac + "," + str(dist) + "," + str(frssi) + "," + str(lrssi))
 
-        if distance(flat, flng, llat, llng) >= 400:
+        sec = (ldate - fdate).total_seconds()
+        if dist >= 2000 and pkgcount >= 15:
             # Valid passenger
             # Let's compute the closest bus stop to its first and last signal
             enterstopid, enterlineid = closest(flat, flng, stops)
@@ -139,9 +153,19 @@ def main(inlog, instops, outlog, maxrssi):
             if enterlineid <= 3:
                 termmatrix[0][exitlineid] = termmatrix[0][exitlineid] + 1
 
-            lpkt = folium.Marker([llat, llng], popup=str(lrssi) + "::" + lmac + "::" + str(ldate),
-                                 icon=folium.Icon(color='red'))
-            lpkt.add_to(mcluster)
+            # Color
+            c = colors[random.randint(0, len(colors) - 1)]
+
+            # Plot
+            fpkt = folium.Marker([flat, flng], popup=str(sec) + "<br />" + str(frssi) + "<br />" + str(dist) + "<br />" + fmac + "::" + str(fdate),
+                                 icon=folium.Icon(color=c))
+            fpkt.add_to(map)
+
+            lpkt = folium.Marker([llat, llng], popup=str(sec) + "<br />" + str(lrssi) + "<br />" + str(dist) + "<br />" + lmac + "::" + str(ldate),
+                                 icon=folium.Icon(color=c))
+            lpkt.add_to(map)
+
+            folium.PolyLine(pkgpoints, color=c, weight=2, opacity=0.5).add_to(map)
 
 
     for id, stopdata in stops.items():
