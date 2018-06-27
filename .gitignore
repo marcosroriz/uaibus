@@ -1,7 +1,14 @@
 # UaiLog
+.directory
 *.csv
+*.csv.*
 *.txt
 *.html
+*.arff
+*.png
+
+# PyCharm
+*.idea/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
