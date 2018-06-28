@@ -37,10 +37,9 @@ def main(outsidecsv, insidecsv, testcsv):
     params_grid = [
         {
           'kernel': ['rbf'],
-          'gamma': [1e-3, 1e-4],
+          'gamma': [1e-2, 1e-3, 1e-4, 1e-5, 1e-6],
           'C': [1, 10, 100, 1000, 10000, 100000],
-          'class_weight': ['balanced', {1: 2}, {1: 3}, {1: 4}, {1: 5},
-                                       {1: 10}, {1: 20}, {1: 50}]
+          'class_weight': ['balanced', {1: 2}, {1: 5}, {1: 10}, {1: 50}]
         },
         # {
         #   'kernel': ['linear'],
@@ -51,18 +50,29 @@ def main(outsidecsv, insidecsv, testcsv):
         # {
         #   'kernel': ['poly'],
         #   'degree': [2, 3, 4],
-        #   'C': [1, 10, 100, 1000, 10000],
+        #   'C': [1, 10, 100, 1000, 10000, 100000],
         #   'class_weight': ['balanced', {1: 2}, {1: 3}, {1: 4}, {1: 5},
         #                                {1: 10}, {1: 20}, {1: 50}]
         # }
     ]
 
-    svclassifier = GridSearchCV(SVC(), params_grid, n_jobs=4, scoring='recall', verbose=True)
+    svclassifier = GridSearchCV(SVC(), params_grid, n_jobs=8, verbose=True)
     svclassifier.fit(Xtrain, ytrain)
     print("Best params:")
     print(svclassifier.best_params_)
 
+    print("\n-----------\nTrain Results:")
+    ytrainpred = svclassifier.predict(Xtrain)
+    print(confusion_matrix(ytrain, ytrainpred))
+    print(classification_report(ytrain, ytrainpred))
 
+    y_true = pd.Series(ytrain.tolist())
+    y_pred = pd.Series(ytrainpred.tolist())
+
+    print(pd.crosstab(y_true, y_pred, rownames=['True'], colnames=['Predicted'], margins=True))
+
+
+    print("\n-----------\nTest Results:")
     # svclassifier = SVC(kernel='rbf', tol=1e-15, class_weight={1 : 100},
     #                    verbose=True, C=100000, max_iter=10000000)
     # svclassifier = linear_model.SGDClassifier(loss="hinge", tol=1e-5,

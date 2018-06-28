@@ -168,7 +168,7 @@ def main(inlog, instops, inclass, winsize, outlog, outarff):
         arfffile.write("@ATTRIBUTE speed NUMERIC\n")
         arfffile.write("@ATTRIBUTE dist NUMERIC\n")
         arfffile.write("@ATTRIBUTE freq NUMERIC\n")
-        arfffile.write("@ATTRIBUTE clazz {IN, OUT   }\n\n")
+        arfffile.write("@ATTRIBUTE clazz {IN, OUT}\n\n")
         arfffile.write("@DATA\n")
 
         for mac, beacons in tracker.items():
