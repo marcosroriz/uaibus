@@ -90,34 +90,51 @@ def getlog(logfile, stops, winsize):
 
     # Summarize multiple beacon in the same second into a single beacon
     singletracker = {}
+    histtracker = {}
     freqtracker = {}
     for mac, beacons in tracker.items():
         singletracker[mac] = {}
-        freqtracker[mac] = []
+        histtracker[mac] = []
+        freqtracker[mac] = {}
 
         for sentdate, sentbeacons in beacons.items():
             meanlat = np.mean([x[1] for x in sentbeacons])
             meanlng = np.mean([x[2] for x in sentbeacons])
             meanrssi = np.mean([x[4] for x in sentbeacons])
             meanspeed = np.mean([x[5] for x in sentbeacons])
-            mindist = closest(meanlat, meanlng, stops)
+            minstopdist = closest(meanlat, meanlng, stops)
+            mintravdist = 0
 
-            # Get the # of beacon in winsize
-            freq = 0
-            currentdate = sentbeacons[0][0]
-            for prevdata in reversed(freqtracker[mac]):
+            # Get the travelled dist in winsize (assume that trav = 0)
+            oldestlat = meanlat
+            oldestlng = meanlng
+
+            # Get the # of unique beacons and total beacons received in winsize
+            uniqfreq = 1                     # Current beacon
+            totalfreq = len(sentbeacons)     # Current beacons in this second
+            currentdate = sentbeacons[0][0]  # Current date (used to look win)
+            for prevdata in reversed(histtracker[mac]):
                 prevdatadate = prevdata[0]
                 timediff = (currentdate - prevdatadate).total_seconds()
                 if timediff <= winsize:
-                    freq = freq + 1
+                    uniqfreq = uniqfreq + 1
+                    totalfreq = totalfreq + freqtracker[mac][str(prevdatadate)]
+                    oldestlat = prevdata[1]
+                    oldestlng = prevdata[2]
                 else:
                     break
 
-            outdata = [currentdate, meanlat, meanlng, mac, meanrssi,
-                       meanspeed, mindist, freq]
-            singletracker[mac][sentdate] = outdata
-            freqtracker[mac].append(outdata)
+            # Travelled Dist
+            mintravdist = distance(meanlat, meanlng, oldestlat, oldestlng)
 
+            # Output data in this second
+            outdata = [currentdate, meanlat, meanlng, mac, meanrssi, meanspeed,
+                       minstopdist, mintravdist, uniqfreq, totalfreq]
+
+            # Save output
+            singletracker[mac][sentdate] = outdata
+            histtracker[mac].append(outdata)
+            freqtracker[mac][sentdate] = len(sentbeacons)
 
     return singletracker
 
@@ -130,13 +147,14 @@ def toarff(sentbeacon, clazz):
         out = out + "IN"
     return out + "\n"
 
+
 @click.command()
 @click.option("--inlog",   default="uailog.csv", help="Input File")
 @click.option("--instops", default="lane.csv",
               help="Bus stops (stations) file")
 @click.option("--inclass", default=0,
               help="Data class (0 outside bus, 1 inside bus)")
-@click.option("--winsize", default=300,
+@click.option("--winsize", default=120,
               help="Maximum time (window size) in seconds between beacons ")
 @click.option("--outlog", default="uai.out.csv", help="Output File")
 @click.option("--outarff", default="uai.out.arff", help="ARFF Output File")
@@ -155,19 +173,23 @@ def main(inlog, instops, inclass, winsize, outlog, outarff):
     # Output to outfile
     # Also plot in matplotlib
     x = []  # RSSI
-    y = []  # Speed
-    z = []  # Dist
+    y = []  # Total number of beacons in time window
+    z = []  # Travelled dist within time window
     with open(outlog, 'w', newline='') as outputcsvfile, \
          open(outarff, 'w', newline='') as arfffile:
+
         outwriter = csv.writer(outputcsvfile)
-        outwriter.writerow(["date", "lat", "lng", "mac", "rssi",
-                            "speed", "dist", "freq", "clazz"])
+        outwriter.writerow(["date", "lat", "lng", "mac", "rssi", "speed",
+                            "stopdist", "travdist", "uniqfreq", "totalfreq",
+                            "clazz"])
 
         arfffile.write("@RELATION uaibus\n\n")
         arfffile.write("@ATTRIBUTE rssi NUMERIC\n")
         arfffile.write("@ATTRIBUTE speed NUMERIC\n")
-        arfffile.write("@ATTRIBUTE dist NUMERIC\n")
-        arfffile.write("@ATTRIBUTE freq NUMERIC\n")
+        arfffile.write("@ATTRIBUTE stopdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE travdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE uniqfreq NUMERIC\n")
+        arfffile.write("@ATTRIBUTE totalfreq NUMERIC\n")
         arfffile.write("@ATTRIBUTE clazz {IN, OUT}\n\n")
         arfffile.write("@DATA\n")
 
@@ -177,12 +199,11 @@ def main(inlog, instops, inclass, winsize, outlog, outarff):
                 arfffile.write(toarff(sentbeacon, inclass))
                 # To Plot
                 x = x + [sentbeacon[4]]  # RSSI
-                y = y + [sentbeacon[5]]  # Speed
-                z = z + [sentbeacon[6]]  # Dist
+                y = y + [sentbeacon[9]]  # Total number of beacons in time window
+                z = z + [sentbeacon[7]]  # Travelled dist within time window
 
         outputcsvfile.flush()
         arfffile.flush()
-
 
     # Plot 3D
     fig = plt.figure()
@@ -194,8 +215,8 @@ def main(inlog, instops, inclass, winsize, outlog, outarff):
     ax.scatter(x, y, z, alpha=0.2, label=r"Fora do Ônibus", c="C0")
     # ax.scatter3D(x, y, z, c=z, cmap='tab20c')
     ax.set_xlabel(r'RSSI (dB)')
-    ax.set_ylabel(r'Velocidade (m/s)')
-    ax.set_zlabel(r'Distância')
+    ax.set_ylabel(r'Número total de beacons em $\Delta$')
+    ax.set_zlabel(r'Distância percorrida em $\Delta$')
     ax.legend(loc=8, borderaxespad=1)
     ax.set_title(r'Dispersão dos pacotes $ProbeRequest$ dos passageiros')
 
