@@ -28,18 +28,20 @@ def main(outsidecsv, insidecsv):
 
     # Out
     outx = []  # RSSI
-    outy = []  # Speed
-    outz = []  # Dist
+    outy = []  # Total number of beacons in time window
+    outz = []  # Travelled dist within time window
     for line in outfreader:
         rssi = float(line["rssi"])
         speed = float(line["speed"])
-        dist = float(line["dist"])
-        freq = int(line["freq"])
+        stopdist = float(line["stopdist"])
+        travdist = float(line["travdist"])
+        uniqfreq = int(line["uniqfreq"])
+        totalfreq = int(line["totalfreq"])
 
         # To Plot
         outx = outx + [rssi]   # RSSI
-        outy = outy + [speed]  # Speed
-        outz = outz + [dist]   # Dist
+        outy = outy + [uniqfreq]  # Speed
+        outz = outz + [totalfreq]   # Dist
 
     # In
     inx = []  # RSSI
@@ -48,13 +50,15 @@ def main(outsidecsv, insidecsv):
     for line in infreader:
         rssi = float(line["rssi"])
         speed = float(line["speed"])
-        dist = float(line["dist"])
-        freq = int(line["freq"])
+        stopdist = float(line["stopdist"])
+        travdist = float(line["travdist"])
+        uniqfreq = int(line["uniqfreq"])
+        totalfreq = int(line["totalfreq"])
 
         # To Plot
         inx = inx + [rssi]   # RSSI
-        iny = iny + [speed]  # Speed
-        inz = inz + [dist]   # Dist
+        iny = iny + [stopdist]  # Speed
+        inz = inz + [travdist]   # Dist
 
 
     # Plot 3D
