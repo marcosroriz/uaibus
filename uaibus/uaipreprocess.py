@@ -8,6 +8,7 @@ import logging
 import click
 import sys
 import numpy as np
+from collections import defaultdict
 from math import asin, atan2, cos, radians, sin, sqrt
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -63,7 +64,7 @@ def getstops(stopsfile):
     return stops
 
 
-def getlog(logfile, stops, winsize):
+def parselog(logfile, stops, winsize):
     tracker = {}
     file = open(logfile, "r")
     filereader = csv.DictReader(file)
@@ -79,64 +80,62 @@ def getlog(logfile, stops, winsize):
             passengerdata = [date, lat, lng, mac, rssi, speed]
 
             if mac not in tracker:
-                tracker[mac] = {}
-                tracker[mac][str(date)] = []
-                tracker[mac][str(date)].append(passengerdata)
+                tracker[mac] = [passengerdata]
             else:
-                if str(date) not in tracker[mac]:
-                    tracker[mac][str(date)] = []
+                tracker[mac].append(passengerdata)
 
-                tracker[mac][str(date)].append(passengerdata)
+    return tracker
 
-    # Summarize multiple beacon in the same second into a single beacon
-    singletracker = {}
+
+def derivelog(rawtracker, stops, winsize):
+    # Derive complex data from rawtracker into final tracker
+    finaltracker = {}
     histtracker = {}
-    freqtracker = {}
-    for mac, beacons in tracker.items():
-        singletracker[mac] = {}
-        histtracker[mac] = []
-        freqtracker[mac] = {}
 
-        for sentdate, sentbeacons in beacons.items():
-            meanlat = np.mean([x[1] for x in sentbeacons])
-            meanlng = np.mean([x[2] for x in sentbeacons])
-            meanrssi = np.mean([x[4] for x in sentbeacons])
-            meanspeed = np.mean([x[5] for x in sentbeacons])
-            minstopdist = closest(meanlat, meanlng, stops)
+    for mac, sentbeacons in rawtracker.items():
+        finaltracker[mac] = []
+        histtracker[mac] = []
+
+        for beacon in sentbeacons:
+            date = beacon[0]
+            lat = beacon[1]
+            lng = beacon[2]
+            rssi = beacon[4]
+            speed = beacon[5]
+
+            # Derived Data
+            minstopdist = closest(lat, lng, stops)
             mintravdist = 0
 
             # Get the travelled dist in winsize (assume that trav = 0)
-            oldestlat = meanlat
-            oldestlng = meanlng
+            oldestlat = lat
+            oldestlng = lng
 
             # Get the # of unique beacons and total beacons received in winsize
-            uniqfreq = 1                     # Current beacon
-            totalfreq = len(sentbeacons)     # Current beacons in this second
-            currentdate = sentbeacons[0][0]  # Current date (used to look win)
+            totalfreq = 1  # Current beacons in this second
+
             for prevdata in reversed(histtracker[mac]):
                 prevdatadate = prevdata[0]
-                timediff = (currentdate - prevdatadate).total_seconds()
+                timediff = (date - prevdatadate).total_seconds()
                 if timediff <= winsize:
-                    uniqfreq = uniqfreq + 1
-                    totalfreq = totalfreq + freqtracker[mac][str(prevdatadate)]
+                    totalfreq = totalfreq + 1
                     oldestlat = prevdata[1]
                     oldestlng = prevdata[2]
                 else:
                     break
 
             # Travelled Dist
-            mintravdist = distance(meanlat, meanlng, oldestlat, oldestlng)
+            mintravdist = distance(lat, lng, oldestlat, oldestlng)
 
-            # Output data in this second
-            outdata = [currentdate, meanlat, meanlng, mac, meanrssi, meanspeed,
-                       minstopdist, mintravdist, uniqfreq, totalfreq]
+            # Complex output data for this beacon = raw + derived data
+            outdata = [date, lat, lng, mac, rssi, speed,
+                       minstopdist, mintravdist, totalfreq]
 
             # Save output
-            singletracker[mac][sentdate] = outdata
+            finaltracker[mac].append(outdata)
             histtracker[mac].append(outdata)
-            freqtracker[mac][sentdate] = len(sentbeacons)
 
-    return singletracker
+    return finaltracker
 
 
 def toarff(sentbeacon, clazz):
@@ -148,17 +147,86 @@ def toarff(sentbeacon, clazz):
     return out + "\n"
 
 
+def output(finaltracker, outlog, outarff, clazz):
+    # Output to outlog and outarff
+    # Also store statistics
+    stat = defaultdict(list)
+
+    with open(outlog, 'w', newline='') as outputcsvfile, \
+         open(outarff, 'w', newline='') as arfffile:
+
+        outwriter = csv.writer(outputcsvfile)
+        outwriter.writerow(["date", "lat", "lng", "mac", "rssi", "speed",
+                            "stopdist", "travdist", "totalfreq", "clazz"])
+
+        arfffile.write("@RELATION uaibus\n\n")
+        arfffile.write("@ATTRIBUTE rssi NUMERIC\n")
+        arfffile.write("@ATTRIBUTE speed NUMERIC\n")
+        arfffile.write("@ATTRIBUTE stopdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE travdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE totalfreq NUMERIC\n")
+        arfffile.write("@ATTRIBUTE clazz {IN, OUT}\n\n")
+        arfffile.write("@DATA\n")
+
+        for mac, sentbeacons in finaltracker.items():
+            for beacon in sentbeacons:
+                outwriter.writerow(beacon + [clazz])
+                arfffile.write(toarff(beacon, clazz))
+
+                # For Statistics
+                stat['rssi'].append(beacon[4])       # RSSI
+                stat['speed'].append(beacon[5])      # Speed
+                stat['stopdist'].append(beacon[6])   # StopDist
+                stat['travdist'].append(beacon[7])   # TravDist
+                stat['totalfreq'].append(beacon[8])  # TotalFreq
+                stat['clazz'].append(clazz)          # Clazz
+
+        outputcsvfile.flush()
+        arfffile.flush()
+
+    return stat
+
+
+def outplot(stat, legend, x, y, z, clazz):
+    # Plot 3D
+    fig = plt.figure()
+    plt.rc('text', usetex=True)
+    # plt.rc('font', family='serif')
+    plt.rcParams['text.latex.unicode'] = True
+
+    ax = Axes3D(fig)
+    plabel = "Fora do Ônibus"
+    if clazz == 1:
+        plabel = "Dentro do Ônibus"
+
+    ax.scatter(stat[x], stat[y], stat[z], alpha=0.2, label=plabel, c="C0")
+    # ax.scatter3D(x, y, z, c=z, cmap='tab20c')
+    ax.set_xlabel(legend[x])
+    ax.set_ylabel(legend[y])
+    ax.set_zlabel(legend[z])
+    ax.legend(loc=8, borderaxespad=0)
+    # leg.draggable(True)
+    ax.set_title(r'Dispersão dos pacotes $ProbeRequest$ dos passageiros')
+    fig.savefig("test.png")
+    fig.tight_layout()
+    fig.subplots_adjust(left=-0.11)
+    plt.show()
+
+
 @click.command()
-@click.option("--inlog",   default="uailog.csv", help="Input File")
+@click.option("--inlog",   default="uailog.csv",   help="Input File")
 @click.option("--instops", default="lane.csv",
               help="Bus stops (stations) file")
-@click.option("--inclass", default=0,
+@click.option("--clazz",   default=0,
               help="Data class (0 outside bus, 1 inside bus)")
 @click.option("--winsize", default=120,
               help="Maximum time (window size) in seconds between beacons ")
-@click.option("--outlog", default="uai.out.csv", help="Output File")
+@click.option("--outlog",  default="uai.out.csv",  help="Output File")
 @click.option("--outarff", default="uai.out.arff", help="ARFF Output File")
-def main(inlog, instops, inclass, winsize, outlog, outarff):
+@click.option("--x",       default="rssi",         help="X Variable (Plot)")
+@click.option("--y",       default="travdist",     help="Y Variable (Plot)")
+@click.option("--z",       default="totalfreq",    help="Z Variable (Plot)")
+def main(inlog, instops, clazz, winsize, outlog, outarff, x, y, z):
     # Config logging
     logging.basicConfig()
     logger = logging.getLogger("uaibus.uaipreprocess")
@@ -167,61 +235,25 @@ def main(inlog, instops, inclass, winsize, outlog, outarff):
     # Read and parse stations
     stops = getstops(instops)
 
-    # Read and parse log files in tracker
-    tracker = getlog(inlog, stops, winsize)
+    # Read and parse basic variables in rawtracker
+    rawtracker = parselog(inlog, stops, winsize)
 
-    # Output to outfile
-    # Also plot in matplotlib
-    x = []  # RSSI
-    y = []  # Total number of beacons in time window
-    z = []  # Travelled dist within time window
-    with open(outlog, 'w', newline='') as outputcsvfile, \
-         open(outarff, 'w', newline='') as arfffile:
+    # Read and derive complex variables in the final tracker
+    finaltracker = derivelog(rawtracker, stops, winsize)
 
-        outwriter = csv.writer(outputcsvfile)
-        outwriter.writerow(["date", "lat", "lng", "mac", "rssi", "speed",
-                            "stopdist", "travdist", "uniqfreq", "totalfreq",
-                            "clazz"])
+    # Output to outfile and retrieve statistics
+    stat = output(finaltracker, outlog, outarff, clazz)
 
-        arfffile.write("@RELATION uaibus\n\n")
-        arfffile.write("@ATTRIBUTE rssi NUMERIC\n")
-        arfffile.write("@ATTRIBUTE speed NUMERIC\n")
-        arfffile.write("@ATTRIBUTE stopdist NUMERIC\n")
-        arfffile.write("@ATTRIBUTE travdist NUMERIC\n")
-        arfffile.write("@ATTRIBUTE uniqfreq NUMERIC\n")
-        arfffile.write("@ATTRIBUTE totalfreq NUMERIC\n")
-        arfffile.write("@ATTRIBUTE clazz {IN, OUT}\n\n")
-        arfffile.write("@DATA\n")
-
-        for mac, beacons in tracker.items():
-            for sentdate, sentbeacon in beacons.items():
-                outwriter.writerow(sentbeacon + [inclass])
-                arfffile.write(toarff(sentbeacon, inclass))
-                # To Plot
-                x = x + [sentbeacon[4]]  # RSSI
-                y = y + [sentbeacon[9]]  # Total number of beacons in time window
-                z = z + [sentbeacon[7]]  # Travelled dist within time window
-
-        outputcsvfile.flush()
-        arfffile.flush()
-
-    # Plot 3D
-    fig = plt.figure()
-    plt.rc('text', usetex=True)
-    # plt.rc('font', family='serif')
-    plt.rcParams['text.latex.unicode'] = True
-
-    ax = Axes3D(fig)
-    ax.scatter(x, y, z, alpha=0.2, label=r"Fora do Ônibus", c="C0")
-    # ax.scatter3D(x, y, z, c=z, cmap='tab20c')
-    ax.set_xlabel(r'RSSI (dB)')
-    ax.set_ylabel(r'Número total de beacons em $\Delta$')
-    ax.set_zlabel(r'Distância percorrida em $\Delta$')
-    ax.legend(loc=8, borderaxespad=1)
-    ax.set_title(r'Dispersão dos pacotes $ProbeRequest$ dos passageiros')
-
-    fig.savefig("test.png")
-    plt.show()
+    # Plot
+    legend = {
+        'rssi'      : r'RSSI (dB)',
+        'speed'     : r'Velocidade do Ônibus (km/h)',
+        'stopdist'  : r'Distância ao ponto de Ônibus mais próximo (m)',
+        'travdist'  : r'Distância entre beacon subsequentes (m)',
+        'totalfreq' : r'Número de beacons recebidos ($\Delta$)',
+        'clazz'     : r'Classificação do beacon'
+    }
+    outplot(stat, legend, x, y, z, clazz)
 
 
 if __name__ == "__main__":
