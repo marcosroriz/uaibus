@@ -14,51 +14,46 @@ from mpl_toolkits.mplot3d import Axes3D
 @click.command()
 @click.option("--outsidecsv", default="outside.csv", help="Outside signals")
 @click.option("--insidecsv",  default="inside.csv",  help="Inside signals")
-def main(outsidecsv, insidecsv):
-    # Config logging
-    logging.basicConfig()
-    logger = logging.getLogger("uaibus.compare")
-    logger.setLevel(logging.INFO)
-
+@click.option("--x", default="rssi", help="X Variable (Plot)")
+@click.option("--y", default="winfrequence", help="Y Variable (Plot)")
+@click.option("--z", default="wintravdist", help="Z Variable (Plot)")
+def main(outsidecsv, insidecsv, x, y, z):
     outfile = open(outsidecsv, "r")
     outfreader = csv.DictReader(outfile)
 
     infile = open(insidecsv, "r")
     infreader = csv.DictReader(infile)
 
-    # Out
-    outx = []  # RSSI
-    outy = []  # Total number of beacons in time window
-    outz = []  # Travelled dist within time window
-    for line in outfreader:
-        rssi = float(line["rssi"])
-        speed = float(line["speed"])
-        stopdist = float(line["stopdist"])
-        travdist = float(line["travdist"])
-        uniqfreq = int(line["uniqfreq"])
-        totalfreq = int(line["totalfreq"])
+    legend = {
+        'rssi'           : r'RSSI (dB)',
+        'speed'          : r'Velocidade do Ônibus (km/h)',
+        'stopdist'       : r'Distância ao ponto de Ônibus mais próximo (m)',
+        'wintravdist'    : r'Distância (m) entre beacons na janela ($\Delta$)',
+        'wintravtime'    : r'Tempo entre beacons na janela ($\Delta$) em (s)',
+        'winfrequence'   : r'Número de beacons recebidos ($\Delta$)',
+        'totaltravdist'  : r'Distância total percorrida pelo dispositivo (m)',
+        'totaltravtime'  : r'Tempo total percorrido pelo dispositivo (s)',
+        'totalfrequence' : r'Número total de beacons recebidos',
+        'clazz'          : r'Classificação do beacon'
+    }
 
-        # To Plot
-        outx = outx + [rssi]   # RSSI
-        outy = outy + [uniqfreq]  # Speed
-        outz = outz + [totalfreq]   # Dist
+    outx = []
+    outy = []
+    outz = []
+    for line in outfreader:
+        outx = outx + [float(line[x])]
+        outy = outy + [float(line[y])]
+        outz = outz + [float(line[z])]
 
     # In
-    inx = []  # RSSI
-    iny = []  # Speed
-    inz = []  # Dist
+    inx = []
+    iny = []
+    inz = []
     for line in infreader:
-        rssi = float(line["rssi"])
-        speed = float(line["speed"])
-        stopdist = float(line["stopdist"])
-        travdist = float(line["travdist"])
-        uniqfreq = int(line["uniqfreq"])
-        totalfreq = int(line["totalfreq"])
-
         # To Plot
-        inx = inx + [rssi]   # RSSI
-        iny = iny + [stopdist]  # Speed
-        inz = inz + [travdist]   # Dist
+        inx = inx + [float(line[x])]
+        iny = iny + [float(line[y])]
+        inz = inz + [float(line[z])]
 
 
     # Plot 3D
@@ -71,9 +66,9 @@ def main(outsidecsv, insidecsv):
     ax.scatter(outx, outy, outz, alpha=0.2, label=r"Fora do Ônibus", c="C0")
     ax.scatter(inx, iny, inz, alpha=0.2, label=r"Dentro do Ônibus", c="Red")
     # ax.scatter3D(x, y, z, c=z, cmap='tab20c')
-    ax.set_xlabel(r'RSSI (dB)')
-    ax.set_ylabel(r'Velocidade (m/s)')
-    ax.set_zlabel(r'Distância')
+    ax.set_xlabel(legend[x])
+    ax.set_ylabel(legend[y])
+    ax.set_zlabel(legend[z])
     ax.legend(loc=8)
     ax.set_title(r'Dispersão dos pacotes $ProbeRequest$ dos passageiros')
 
