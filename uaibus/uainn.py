@@ -5,6 +5,7 @@
 import click
 import numpy as np
 import pandas as pd
+from sklearn.externals import joblib
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import GridSearchCV
 from sklearn.neural_network import MLPClassifier
@@ -17,7 +18,8 @@ from sklearn.preprocessing import StandardScaler
 @click.option("--testcsv",    default="test.out.csv", help="Test signals")
 def main(outsidecsv, insidecsv, testcsv):
     # dropcolumns = ["date", "lat", "lng", "mac"]
-    dropcolumns = ["date", "lat", "lng", "stopdist", "mac"]
+    dropcolumns = ["date", "lat", "lng", "stopdist", "mac",
+                   "totaltravdist", "totaltravtime", "totalfrequence"]
 
     outdf = pd.read_csv(outsidecsv)
     indf = pd.read_csv(insidecsv)
@@ -29,8 +31,6 @@ def main(outsidecsv, insidecsv, testcsv):
 
     singledf = pd.concat([outdf, indf])
     X = singledf.drop('clazz', axis=1)
-    X['distsq'] = X['travdist'] ** 2
-    X['rssisq'] = X['rssi'] ** 2
     y = singledf['clazz']
 
     scaler = StandardScaler()
@@ -41,19 +41,17 @@ def main(outsidecsv, insidecsv, testcsv):
     params_grid = [
         {
             'learning_rate': ["constant", "invscaling", "adaptive"],
-            'hidden_layer_sizes': [(50, 25), (100, 25)
-                                   # (10, 10), (10, 5),
-                                   # (20, 10), (20, 5),
-                                   # (50, 10), (50, 25), (50, 30),
-                                   # (100, 50), (100, 25), (100, 10)
+            'hidden_layer_sizes': [(10, 10), (10, 5),
+                                   (20, 10), (20, 5),
+                                   (50, 10), (50, 25), (50, 30),
+                                   (100, 50), (100, 25), (100, 10)
                                    ],
-            # 'alpha': [0.1, 0.01, 0.001, 0.2, 0.02, 0.002, 0.5, 0.05, 0.005],
-            'alpha': [0.2, 0.1],
-            'momentum': [0.2],
+            'alpha': [0.1, 0.01, 0.001, 0.2, 0.02, 0.002, 0.5, 0.05, 0.005],
+            # 'alpha': [0.1],
             'tol': [1e-10],
-            # 'activation': ["logistic", "relu", "tanh"],
-            'activation': ["relu"],
-            'max_iter': [1000000]
+            'activation': ["logistic", "relu", "tanh"],
+            # 'activation': ["relu"],
+            'max_iter': [5000000]
         },
         # {
         #   'kernel': ['linear'],
@@ -94,14 +92,16 @@ def main(outsidecsv, insidecsv, testcsv):
     # svclassifier.fit(Xtrain, ytrain)
 
     Xtest = testdf.drop('clazz', axis=1)
-    Xtest['distsq'] = Xtest['travdist'] ** 2
-    Xtest['rssisq'] = Xtest['rssi'] ** 2
     Xtest = scaler.transform(Xtest)
     ytest = testdf['clazz']
     ypred = nn.predict(Xtest)
 
     print(confusion_matrix(ytest, ypred))
     print(classification_report(ytest, ypred))
+
+    # Save Classifier and scaler
+    joblib.dump(scaler, "scaler.pkl")
+    joblib.dump(nn.best_estimator_, 'svmclassifier.pkl')
 
 
 if __name__ == "__main__":

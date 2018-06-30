@@ -84,10 +84,19 @@ def parselog(logfile, stops, winsize, svm, scaler):
             speed = float(line["speed"])
 
             # Derived data
-            minstopdist, stopid = closest(lat, lng, stops)
-            mintravdist = 0
-            uniqfreq = 1
-            totalfreq = 1
+            stopdist, stopid = closest(lat, lng, stops)
+            wintravtime = 0     # Travelled time within beacons in time window
+            wintravdist = 0     # Travelled distance within time window
+            winfrequence = 1    # Number of beacons within time window
+            totaltravtime = 0   # Total travelled time of this beacon
+            totaltravdist = 0   # Total travelled distance of this beacon
+            totalfrequence = 1  # Number of beacons sent by this user
+
+            # Get the travelled dist in winsize (assume that trav = 0)
+            oldestwinlat = lat
+            oldestwinlng = lng
+            oldestlat = lat
+            oldestlng = lng
 
             # Check if we already see this mac
             if mac not in tracker:
@@ -108,28 +117,34 @@ def parselog(logfile, stops, winsize, svm, scaler):
                     prevdatadate = prevdata[0]
                     timediff = (date - prevdatadate).total_seconds()
                     if timediff <= winsize:
-                        if str(date) == str(prevdatadate):
-                            uniqfreq = uniqfreq + 1
-
-                        totalfreq = totalfreq + 1
+                        wintravtime = timediff
+                        totaltravtime = timediff
+                        winfrequence = winfrequence + 1
+                        totalfrequence = totalfrequence + 1
+                        oldestwinlat = prevdata[1]
+                        oldestwinlng = prevdata[2]
                         oldestlat = prevdata[1]
                         oldestlng = prevdata[2]
                     else:
-                        break
+                        totaltravtime = timediff
+                        totalfrequence = totalfrequence + 1
+                        oldestlat = prevdata[1]
+                        oldestlng = prevdata[2]
 
-                mintravdist = distance(lat, lng, oldestlat, oldestlng)
+                # Travelled Distances
+                wintravdist = distance(lat, lng, oldestwinlat, oldestwinlng)
+                totaltravdist = distance(lat, lng, oldestlat, oldestlng)
 
             # Complete Beacon (Passenger Data)
-            passengerdata = [date, lat, lng, mac, rssi, speed, minstopdist,
-                             mintravdist, uniqfreq, totalfreq, stopid]
+            passengerdata = [date, lat, lng, mac, rssi, speed,
+                             stopdist, wintravdist, wintravtime, winfrequence,
+                             totaltravdist, totaltravtime, totalfrequence]
 
             # Check if beacon is inside or not
-            # distsq = mintravdist ** 2
-            # distth = mintravdist ** 3
-            # rssisq = rssi ** 2
-            # rssith = rssi ** 3
-            scaldata = scaler.transform([[rssi, speed, mintravdist, totalfreq]])
-                                          # distsq, distth, rssisq, rssith]])
+            scaldata = scaler.transform([[rssi, speed, wintravdist,
+                                          wintravtime, winfrequence,
+                                          totaltravdist, totaltravtime,
+                                          totalfrequence]])
             outcome = svm.predict(scaldata)
             if outcome == [1]:
                 if not tracker[mac]["inside"]:
@@ -137,6 +152,7 @@ def parselog(logfile, stops, winsize, svm, scaler):
                     origstopid = stopid
 
                     if len(tracker[mac]["stops"]) > 0:
+                        # origstopid = tracker[mac]["stops"][0] - 1
                         origstopid = tracker[mac]["stops"][0] - 1
 
                     stops[origstopid]["in"] = stops[origstopid]["in"] + 1
@@ -152,9 +168,7 @@ def parselog(logfile, stops, winsize, svm, scaler):
                 else:
                     pass
 
-            # if stopid not in tracker[mac]["stops"]:
-            #     tracker[mac]["stops"] = tracker[mac]["stops"] + [stopid]
-
+            tracker[mac]["stops"].append(stopid)
             tracker[mac]["count"] = tracker[mac]["count"] + 1
             tracker[mac]["log"].append(passengerdata)
             tracker[mac]["points"].append((lat, lng))

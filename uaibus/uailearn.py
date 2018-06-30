@@ -17,7 +17,8 @@ from sklearn.preprocessing import StandardScaler
 @click.option("--insidecsv",  default="inside.csv",   help="Inside signals")
 @click.option("--testcsv",    default="test.out.csv", help="Test signals")
 def main(outsidecsv, insidecsv, testcsv):
-    dropcolumns = ["date", "lat", "lng", "stopdist", "uniqfreq", "mac"]
+    dropcolumns = ["date", "lat", "lng", "stopdist", "mac",
+                   "totaltravdist", "totaltravtime", "totalfrequence"]
     # dropcolumns = ["date", "lat", "lng", "mac"]
     outdf = pd.read_csv(outsidecsv)
     indf = pd.read_csv(insidecsv)
@@ -30,9 +31,10 @@ def main(outsidecsv, insidecsv, testcsv):
     singledf = pd.concat([outdf, indf])
     X = singledf.drop('clazz', axis=1)
 
-    X['distsq'] = X['travdist'] ** 2
-    X['rssisq'] = X['rssi'] ** 2
-
+    # X['distsq'] = X['travdist'] ** 2
+    # X['distth'] = X['travdist'] ** 3
+    # X['rssisq'] = X['rssi'] ** 2
+    # X['rssith'] = X['rssi'] ** 3
     y = singledf['clazz']
 
     scaler = StandardScaler()
@@ -44,7 +46,7 @@ def main(outsidecsv, insidecsv, testcsv):
         {
           'kernel': ['rbf'],
           'gamma': [1e-2, 1e-3, 1e-4, 1e-5, 1e-6],
-          'C': [1, 10, 100, 1000, 10000, 100000],
+          'C': [10, 100, 1000, 10000],
           'class_weight': ['balanced', {1: 2}, {1: 5}, {1: 10}, {1: 50}]
         },
         # {
@@ -87,8 +89,10 @@ def main(outsidecsv, insidecsv, testcsv):
 
     Xtest = testdf.drop('clazz', axis=1)
 
-    Xtest['distsq'] = Xtest['travdist'] ** 2
-    Xtest['rssisq'] = Xtest['rssi'] ** 2
+    # Xtest['distsq'] = Xtest['travdist'] ** 2
+    # Xtest['distth'] = Xtest['travdist'] ** 3
+    # Xtest['rssisq'] = Xtest['rssi'] ** 2
+    # Xtest['rssith'] = Xtest['rssi'] ** 3
 
     Xtest = scaler.transform(Xtest)
     ytest = testdf['clazz']
@@ -97,7 +101,8 @@ def main(outsidecsv, insidecsv, testcsv):
     print(confusion_matrix(ytest, ypred))
     print(classification_report(ytest, ypred))
 
-    # Save Classifier
+    # Save Classifier and scaler
+    joblib.dump(scaler, "scaler.pkl")
     joblib.dump(svclassifier.best_estimator_, 'svmclassifier.pkl')
 
 
