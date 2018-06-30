@@ -104,32 +104,46 @@ def derivelog(rawtracker, stops, winsize):
             speed = beacon[5]
 
             # Derived Data
-            minstopdist = closest(lat, lng, stops)
-            mintravdist = 0
+            stopdist = closest(lat, lng, stops)  # Min Dist to a bus stop
+            wintravtime = 0     # Travelled time within beacons in time window
+            wintravdist = 0     # Travelled distance within time window
+            winfrequence = 1    # Number of beacons within time window
+            totaltravtime = 0   # Total travelled time of this beacon
+            totaltravdist = 0   # Total travelled distance of this beacon
+            totalfrequence = 1  # Number of beacons sent by this user
 
             # Get the travelled dist in winsize (assume that trav = 0)
+            oldestwinlat = lat
+            oldestwinlng = lng
             oldestlat = lat
             oldestlng = lng
-
-            # Get the # of unique beacons and total beacons received in winsize
-            totalfreq = 1  # Current beacons in this second
 
             for prevdata in reversed(histtracker[mac]):
                 prevdatadate = prevdata[0]
                 timediff = (date - prevdatadate).total_seconds()
                 if timediff <= winsize:
-                    totalfreq = totalfreq + 1
+                    wintravtime = timediff
+                    totaltravtime = timediff
+                    winfrequence = winfrequence + 1
+                    totalfrequence = totalfrequence + 1
+                    oldestwinlat = prevdata[1]
+                    oldestwinlng = prevdata[2]
                     oldestlat = prevdata[1]
                     oldestlng = prevdata[2]
                 else:
-                    break
+                    totaltravtime = timediff
+                    totalfrequence = totalfrequence + 1
+                    oldestlat = prevdata[1]
+                    oldestlng = prevdata[2]
 
-            # Travelled Dist
-            mintravdist = distance(lat, lng, oldestlat, oldestlng)
+            # Travelled Distances
+            wintravdist = distance(lat, lng, oldestwinlat, oldestwinlng)
+            totaltravdist = distance(lat, lng, oldestlat, oldestlng)
 
             # Complex output data for this beacon = raw + derived data
             outdata = [date, lat, lng, mac, rssi, speed,
-                       minstopdist, mintravdist, totalfreq]
+                       stopdist, wintravdist, wintravtime, winfrequence,
+                       totaltravdist, totaltravtime, totalfrequence]
 
             # Save output
             finaltracker[mac].append(outdata)
@@ -156,15 +170,22 @@ def output(finaltracker, outlog, outarff, clazz):
          open(outarff, 'w', newline='') as arfffile:
 
         outwriter = csv.writer(outputcsvfile)
-        outwriter.writerow(["date", "lat", "lng", "mac", "rssi", "speed",
-                            "stopdist", "travdist", "totalfreq", "clazz"])
+        outwriter.writerow(["date", "lat", "lng", "mac",
+                            "rssi", "speed", "stopdist",
+                            "wintravdist", "wintravtime", "winfrequence",
+                            "totaltravdist", "totaltravtime", "totalfrequence",
+                            "clazz"])
 
         arfffile.write("@RELATION uaibus\n\n")
         arfffile.write("@ATTRIBUTE rssi NUMERIC\n")
         arfffile.write("@ATTRIBUTE speed NUMERIC\n")
         arfffile.write("@ATTRIBUTE stopdist NUMERIC\n")
-        arfffile.write("@ATTRIBUTE travdist NUMERIC\n")
-        arfffile.write("@ATTRIBUTE totalfreq NUMERIC\n")
+        arfffile.write("@ATTRIBUTE wintravdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE wintravtime NUMERIC\n")
+        arfffile.write("@ATTRIBUTE winfrequence NUMERIC\n")
+        arfffile.write("@ATTRIBUTE totaltravdist NUMERIC\n")
+        arfffile.write("@ATTRIBUTE totaltravtime NUMERIC\n")
+        arfffile.write("@ATTRIBUTE totalfrequence NUMERIC\n")
         arfffile.write("@ATTRIBUTE clazz {IN, OUT}\n\n")
         arfffile.write("@DATA\n")
 
@@ -174,12 +195,16 @@ def output(finaltracker, outlog, outarff, clazz):
                 arfffile.write(toarff(beacon, clazz))
 
                 # For Statistics
-                stat['rssi'].append(beacon[4])       # RSSI
-                stat['speed'].append(beacon[5])      # Speed
-                stat['stopdist'].append(beacon[6])   # StopDist
-                stat['travdist'].append(beacon[7])   # TravDist
-                stat['totalfreq'].append(beacon[8])  # TotalFreq
-                stat['clazz'].append(clazz)          # Clazz
+                stat['rssi'].append(beacon[4])
+                stat['speed'].append(beacon[5])
+                stat['stopdist'].append(beacon[6])
+                stat['wintravdist'].append(beacon[7])
+                stat['wintravtime'].append(beacon[8])
+                stat['winfrequence'].append(beacon[9])
+                stat['totaltravdist'].append(beacon[10])
+                stat['totaltravtime'].append(beacon[11])
+                stat['totalfrequence'].append(beacon[12])
+                stat['clazz'].append(clazz)
 
         outputcsvfile.flush()
         arfffile.flush()
@@ -214,18 +239,18 @@ def outplot(stat, legend, x, y, z, clazz):
 
 
 @click.command()
-@click.option("--inlog",   default="uailog.csv",   help="Input File")
+@click.option("--inlog",   default="uailog.csv",    help="Input File")
+@click.option("--outlog",  default="uai.out.csv",   help="Output File")
+@click.option("--outarff", default="uai.out.arff",  help="ARFF Output File")
 @click.option("--instops", default="lane.csv",
               help="Bus stops (stations) file")
 @click.option("--clazz",   default=0,
               help="Data class (0 outside bus, 1 inside bus)")
 @click.option("--winsize", default=120,
               help="Maximum time (window size) in seconds between beacons ")
-@click.option("--outlog",  default="uai.out.csv",  help="Output File")
-@click.option("--outarff", default="uai.out.arff", help="ARFF Output File")
-@click.option("--x",       default="rssi",         help="X Variable (Plot)")
-@click.option("--y",       default="travdist",     help="Y Variable (Plot)")
-@click.option("--z",       default="totalfreq",    help="Z Variable (Plot)")
+@click.option("--x",       default="rssi",          help="X Variable (Plot)")
+@click.option("--y",       default="totaltravtime", help="Y Variable (Plot)")
+@click.option("--z",       default="totaltravdist", help="Z Variable (Plot)")
 def main(inlog, instops, clazz, winsize, outlog, outarff, x, y, z):
     # Config logging
     logging.basicConfig()
@@ -246,12 +271,16 @@ def main(inlog, instops, clazz, winsize, outlog, outarff, x, y, z):
 
     # Plot
     legend = {
-        'rssi'      : r'RSSI (dB)',
-        'speed'     : r'Velocidade do Ônibus (km/h)',
-        'stopdist'  : r'Distância ao ponto de Ônibus mais próximo (m)',
-        'travdist'  : r'Distância entre beacon subsequentes (m)',
-        'totalfreq' : r'Número de beacons recebidos ($\Delta$)',
-        'clazz'     : r'Classificação do beacon'
+        'rssi'           : r'RSSI (dB)',
+        'speed'          : r'Velocidade do Ônibus (km/h)',
+        'stopdist'       : r'Distância ao ponto de Ônibus mais próximo (m)',
+        'wintravdist'    : r'Distância (m) entre beacons na janela ($\Delta$)',
+        'wintravtime'    : r'Tempo entre beacons na janela (\Delta$) em (s)',
+        'winfrequence'   : r'Número de beacons recebidos ($\Delta$)',
+        'totaltravdist'  : r'Distância total percorrida pelo dispositivo (m)',
+        'totaltravtime'  : r'Tempo total percorrido pelo dispositivo (s)',
+        'totalfrequence' : r'Número total de beacons recebidos',
+        'clazz'          : r'Classificação do beacon'
     }
     outplot(stat, legend, x, y, z, clazz)
 
