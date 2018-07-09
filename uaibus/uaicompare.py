@@ -1,7 +1,7 @@
 #!/bin/env python
 # import pudb
 # pu.db
-
+import random
 import csv
 import logging
 import click
@@ -12,12 +12,13 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 @click.command()
-@click.option("--outsidecsv", default="outside.csv", help="Outside signals")
-@click.option("--insidecsv",  default="inside.csv",  help="Inside signals")
+@click.option("--outsidecsv",  default="outside.csv", help="Outside signals")
+@click.option("--insidecsv",   default="inside.csv",  help="Inside signals")
+@click.option("--usesampling", default=False, is_flag=True, help="Use sampling?")
 @click.option("--x", default="rssi", help="X Variable (Plot)")
 @click.option("--y", default="winfrequence", help="Y Variable (Plot)")
 @click.option("--z", default="wintravdist", help="Z Variable (Plot)")
-def main(outsidecsv, insidecsv, x, y, z):
+def main(outsidecsv, insidecsv, usesampling, x, y, z):
     outfile = open(outsidecsv, "r")
     outfreader = csv.DictReader(outfile)
 
@@ -41,19 +42,32 @@ def main(outsidecsv, insidecsv, x, y, z):
     outy = []
     outz = []
     for line in outfreader:
-        outx = outx + [float(line[x])]
-        outy = outy + [float(line[y])]
-        outz = outz + [float(line[z])]
+        if usesampling:
+            prob = random.random()
+            if prob <= 0.25:
+                outx = outx + [float(line[x])]
+                outy = outy + [float(line[y])]
+                outz = outz + [float(line[z])]
+        else:
+            outx = outx + [float(line[x])]
+            outy = outy + [float(line[y])]
+            outz = outz + [float(line[z])]
 
     # In
     inx = []
     iny = []
     inz = []
     for line in infreader:
-        # To Plot
-        inx = inx + [float(line[x])]
-        iny = iny + [float(line[y])]
-        inz = inz + [float(line[z])]
+        if usesampling:
+            prob = random.random()
+            if prob <= 0.25:
+                inx = inx + [float(line[x])]
+                iny = iny + [float(line[y])]
+                inz = inz + [float(line[z])]
+        else:
+            inx = inx + [float(line[x])]
+            iny = iny + [float(line[y])]
+            inz = inz + [float(line[z])]
 
 
     # Plot 3D
