@@ -107,6 +107,7 @@ def parselog(logfile, stops, winsize, svm, scaler):
                 tracker[mac]["log"] = []
                 tracker[mac]["points"] = []
                 tracker[mac]["stops"] = []
+                tracker[mac]["instops"] = []
             else:
                 # Old MAC address
                 # Get oldest position in wintime to compute trav dist and freq
@@ -138,18 +139,28 @@ def parselog(logfile, stops, winsize, svm, scaler):
             # Complete Beacon (Passenger Data)
             passengerdata = [date, lat, lng, mac, rssi, speed,
                              stopdist, wintravdist, wintravtime, winfrequence,
-                             totaltravdist, totaltravtime, totalfrequence]
+                             totaltravdist, totaltravtime, totalfrequence, stopid]
 
             # Check if beacon is inside or not
-            scaldata = scaler.transform([[rssi, speed, wintravdist,
-                                          wintravtime, winfrequence,
-                                          totaltravdist, totaltravtime,
-                                          totalfrequence]])
+            scaldata = scaler.transform([[rssi, speed,
+                                          # wintravdist,
+                                          # wintravtime,
+                                          # winfrequence,
+                                          totaltravdist,
+                                          totaltravtime,
+                                          totalfrequence,
+                                          totaltravdist ** 2,
+                                          totaltravtime ** 3,
+                                          rssi ** 2,
+                                          totalfrequence ** 3
+                                          ]])
             outcome = svm.predict(scaldata)
             if outcome == [1]:
+                origstopid = stopid
+
                 if not tracker[mac]["inside"]:
+                    tracker[mac]["first"] = passengerdata
                     tracker[mac]["inside"] = True
-                    origstopid = stopid
 
                     if len(tracker[mac]["stops"]) > 0:
                         # origstopid = tracker[mac]["stops"][0] - 1
@@ -158,21 +169,52 @@ def parselog(logfile, stops, winsize, svm, scaler):
                     stops[origstopid]["in"] = stops[origstopid]["in"] + 1
                     stops[origstopid]["inlist"] = stops[origstopid]["inlist"] + [mac]
 
-                tracker[mac]["first"] = passengerdata
-            else:
+                if origstopid not in tracker[mac]["instops"]:
+                    tracker[mac]["instops"] = tracker[mac]["instops"] + [origstopid]
+
+            # else:
                 # Check if it was previously inside
-                if tracker[mac]["inside"]:
-                    # Set out stop
-                    stops[stopid]["out"] = stops[stopid]["out"] + 1
-                    stops[stopid]["outlist"] = stops[stopid]["outlist"] + [mac]
-                else:
-                    pass
+                # if tracker[mac]["inside"]:
+                #     # Set out stop
+                #     stops[stopid]["out"] = stops[stopid]["out"] + 1
+                #     stops[stopid]["outlist"] = stops[stopid]["outlist"] + [mac]
+                # else:
+                #     pass
 
             tracker[mac]["stops"].append(stopid)
             tracker[mac]["count"] = tracker[mac]["count"] + 1
             tracker[mac]["log"].append(passengerdata)
             tracker[mac]["points"].append((lat, lng))
             tracker[mac]["last"] = passengerdata
+
+    for mac in tracker:
+        count = 0
+        if tracker[mac]["inside"]:
+            laststopid = -1
+            for first, second in zip(tracker[mac]["log"], tracker[mac]["log"][1:]):
+                firstdate = first[0]
+                secondate = second[0]
+                timediff = (secondate - firstdate).total_seconds()
+
+                if timediff > winsize:
+                    count = count + 1
+                    # laststopid = tracker[mac]["instops"][-1]
+                    laststopid = second[13]
+
+            if laststopid == -1:
+                print("tudo certinho")
+                ult = datetime.datetime.strptime("2018-05-01 23:58:50", "%Y-%m-%d %H:%M:%S")
+                ultdiff = (ult - tracker[mac]["log"][-1][0]).total_seconds()
+                if ultdiff > winsize:
+                    laststopid = tracker[mac]["log"][-1][13]
+
+            if laststopid != -1:
+                # add 1
+                laststopid = laststopid + 1
+                laststopid = min(laststopid, max(stops.keys()))
+                stops[laststopid]["out"] = stops[laststopid]["out"] + 1
+                stops[laststopid]["outlist"] = stops[laststopid]["outlist"] + [mac]
+
 
     return stops
 
@@ -197,14 +239,16 @@ def main(inlog, instops, outlog, winsize, classifierfile, scalerfile):
     # Read and parse log files in tracker
     stopcount = parselog(inlog, stops, winsize, svm, scaler)
 
-    total = 0
+    tin = 0
+    tout = 0
     # Output
     for sid, stp in stopcount.items():
-        print(sid, stp["in"])
+        print(sid, stp["in"], stp["out"])
         # print(sid, stp["out"])
-        total = total + stp["in"]
+        tin = tin + stp["in"]
+        tout = tout + stp["out"]
 
-    print("Total", total)
+    print("Total: ", tin, tout)
 
 
 if __name__ == "__main__":
