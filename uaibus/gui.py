@@ -56,7 +56,7 @@ class Init(Screen):
 
 
 class ScanIface(Screen):
-    moniface = StringProperty("wlp2s0mon")
+    moniface = StringProperty("mon0")
 
 
 class GPSIface(Screen):
