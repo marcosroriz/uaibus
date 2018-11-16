@@ -3,6 +3,8 @@
 """Scan module."""
 import logging
 import queue
+import time
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from scapy.all import sniff
@@ -30,8 +32,10 @@ class Scan:
         self.scheduler = ThreadPoolExecutor(max_workers=poolsize)
         self.pktqueue = queue.Queue()
         self.logger = logging.getLogger("uaibus.scan")
+        self.stopevent = threading.Event()
 
     def pkthandler(self, pkt):
+        self.logger.info("Received pkt")
         if pkt.haslayer(Dot11):
             if pkt.type == 0 and pkt.subtype == 4:
                 if pkt.addr2 is not None:
@@ -59,13 +63,36 @@ class Scan:
         self.scheduler.submit(self.pkthandler, pkt)
         # self.pkthandler(pkt)
 
+    def close(self):
+        self.stopevent.set()
+
     def sniff(self):
-        sniff(iface=self.wiface, prn=self.poolhandler)
+        sniff(iface=self.wiface, prn=self.poolhandler,
+              stop_filter=lambda x: self.stopevent.is_set())
 
 
 if __name__ == '__main__':
+    logging.basicConfig()
     logger = logging.getLogger("uaibus.scan")
     logger.setLevel(logging.DEBUG)
 
     scan = Scan("wlp2s0mon")
-    scan.sniff()
+    t = threading.Thread(target=scan.sniff)
+    t.start()
+
+    logger.info("Sleeping 10 seconds")
+    time.sleep(10)
+
+    logger.info("Closing Sniffer")
+    scan.close()
+    time.sleep(2)
+
+    logger.info("Ensure that queue has same size in next 10 seconds")
+    lengthBefore = scan.pktqueue.qsize()
+    time.sleep(10)
+
+    lengthAfter = scan.pktqueue.qsize()
+    if lengthBefore == lengthAfter:
+        logger.info("Queues have same size. Closed correctly")
+    else:
+        logger.error("Queues DOES NOT have same size. Closed INCORRECTLY")
