@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# import pudb
-# pu.db
 
 """Console script for uaibus."""
 import click
@@ -17,6 +15,7 @@ class UaiController:
         self.scan = scan
         self.gps = gps
         self.commands = []
+        self.run = False
         self.scheduler = ThreadPoolExecutor(max_workers=4)
         self.logger = logging.getLogger("uaibus")
 
@@ -33,12 +32,25 @@ class UaiController:
         self.gps.connect()
 
         # Start WiFi Scan
-        t = threading.Thread(target=self.scan.sniff)
-        t.start()
+        self.t = threading.Thread(target=self.scan.sniff)
+        self.t.start()
 
-    def loop(self):
+    def close(self):
+        self.logger.info("Started Closing UAI-FI modules")
+
+        self.run = False
+        self.scan.close()
+        self.t.join()
+        # self.gps.close()
+        for c in self.commands:
+            c.close()
+
+        self.logger.info("Finished Closing UAI-FI modules")
+
+    def loop(self, run=True, beaconcount=None):
+        self.run = run
         try:
-            while True:
+            while run:
                 # Read pkt data from scanner and gps
                 wifipkt = self.scan.readpacket()
                 gpspkt  = self.gps.readpacket()
@@ -49,6 +61,11 @@ class UaiController:
                 # Let's spawn a thread to handle output
                 self.scheduler.submit(self.handlepkt, pkt)
                 # self.handlepkt(pkt)
+
+                # Update beacon count
+                if beaconcount is not None:
+                    beaconcount()
+
         except KeyboardInterrupt as kex:
             self.logger.error("Keyboard Interrupt")
             self.logger.error(kex)
