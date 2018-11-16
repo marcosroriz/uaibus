@@ -81,7 +81,7 @@ UaiGUI:
       height: 100
       font_size: mainfont
       text: root.moniface
-      values: ["mon0", "wlan0", "wlp2s0mon0", "wmon0"]
+      values: ["wlp2s0mon", "wlan0", "wlp2s0mon0", "wmon0"]
       on_text: root.moniface = self.text
 
     Label:
@@ -280,34 +280,19 @@ UaiGUI:
     BoxLayout:
       spacing: 10
       Label:
-        size_hint_y: 0.8
         font_size: secondfont
         valign: "middle"
         halign: "right"
         color: black
         text: u'Número de Beacons'
       Label:
+        size_hint_x: None
+        width: 80
         color: blue
         valign: "middle"
         halign: "right"
-        font_size: secondfont
-        text: "20"
-
-    BoxLayout:
-      spacing: 10
-      Label:
-        color: black
-        size_hint_y: 0.8
-        font_size: secondfont
-        valign: "middle"
-        halign: "right"
-        text: u'Número de Pacotes'
-      Label:
-        color: blue
-        font_size: secondfont
-        text: "40"
-        valign: "middle"
-        halign: "right"
+        font_size: mainfont
+        text: str(root.pkgcount)
 
     Button:
       size_hint_y: 1
@@ -347,4 +332,4 @@ UaiGUI:
 
     Button:
       text: 'Terminar'
-      on_release: root.dismiss(); app.root.current = "init"
+      on_release: root.dismiss(); app.root.get_screen("start").close()
