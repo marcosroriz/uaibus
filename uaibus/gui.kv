@@ -1,0 +1,350 @@
+#:kivy 1.10.1
+#:import Factory kivy.factory.Factory
+
+# Variables
+#:set black (0, 0, 0, 1)
+#:set blue (0, 0, 1, 1)
+#:set spsize 50
+#:set pdsize [20, 20]
+#:set headerfontsize 20
+#:set headerheight 60
+
+#:set mainfont 32
+#:set secondfont 20
+
+#:set footfontsize 20
+#:set footheight 60
+#:set footspacing 40
+
+UaiGUI:
+  Init:
+  ScanIface:
+  GPSIface:
+  FileNumber:
+  DatePicker:
+  Review:
+  Start:
+
+<ScreenLayout@BoxLayout>:
+  orientation: "vertical"
+  spacing: spsize
+  padding: pdsize
+
+<Header@Label>:
+  color: black
+  size_hint_y: None
+  font_size: headerfontsize
+  height: headerheight
+
+<Foot@BoxLayout>:
+  size_hint_y: None
+  height: footheight
+  orientation: "horizontal"
+  spacing: footspacing
+
+<FootButton@Button>:
+  font_size: footfontsize
+
+<ReviewLabel@Label>:
+  font_size: secondfont
+  color: black
+
+<ReviewContent@Label>:
+  text: "-"
+  font_size: secondfont
+  color: blue
+
+<Init>:
+  name: "init"
+  ScreenLayout:
+    Image:
+      allow_stretch: True
+      source: "logo.png"
+
+    Foot:
+      FootButton:
+        text: u'Terminar'
+        on_release: Factory.ConfirmExit().open()
+      FootButton:
+        text: u'Iniciar Config'
+        on_release: app.root.current = "scaniface"
+
+
+<ScanIface>:
+  name: "scaniface"
+  ScreenLayout:
+    Header:
+      text: u'Escolha a interface de rede do sniffer'
+
+    Spinner:
+      size_hint_y: None
+      height: 100
+      font_size: mainfont
+      text: root.moniface
+      values: ["mon0", "wlan0", "wlp2s0mon0", "wmon0"]
+      on_text: root.moniface = self.text
+
+    Label:
+      text: ""
+
+    Foot:
+      FootButton:
+        text: 'Voltar'
+        on_release: app.root.current = "init"
+      FootButton:
+        text: u'Próximo'
+        on_release: app.root.current = "gpsiface"
+
+
+<GPSIface>:
+  name: "gpsiface"
+  ScreenLayout:
+    Header:
+      text: u'Escolha a interface do GPS'
+
+    Spinner:
+      size_hint_y: None
+      height: 100
+      font_size: mainfont
+      text: root.gpsiface
+      values: ["/dev/ttyUSB1", "/dev/ttyUSB0", "/dev/ttyS0", "/dev/serial0"]
+      on_text: root.gpsiface = self.text
+
+    Label:
+      text: ""
+
+    Foot:
+      FootButton:
+        text: 'Voltar'
+        on_release: app.root.current = "scaniface"
+      FootButton:
+        text: u'Próximo'
+        on_release: app.root.current = "filenumber"
+
+
+<FileNumber>:
+  name: "filenumber"
+  ScreenLayout:
+    Header:
+      text: u'Escolha o # do arquivo a ser salvo'
+
+    BoxLayout:
+      orientation: "horizontal"
+      BoxLayout:
+        orientation: "vertical"
+        spacing: 20
+        Button:
+          font_size: mainfont
+          text: "+"
+          on_release: root.filenumber = root.filenumber + 1
+        Button:
+          font_size: mainfont
+          text: "-"
+          on_release: root.filenumber = root.filenumber - 1
+      Label:
+        id: fn
+        color: black
+        text: str(root.filenumber)
+        font_size: 60
+
+    Foot:
+      FootButton:
+        text: 'Voltar'
+        on_release: app.root.current = "scaniface"
+      FootButton:
+        text: u'Próximo'
+        on_release: app.root.current = "datepicker"
+
+
+<DatePicker>:
+  name: "datepicker"
+  ScreenLayout:
+    Header:
+      text: u"Escolha a Hora/Minutos/Segundos"
+
+    BoxLayout:
+      orientation: "horizontal"
+      spacing: 20
+
+      BoxLayout:
+        orientation: "horizontal"
+        BoxLayout:
+          orientation: "horizontal"
+          BoxLayout:
+            orientation: "vertical"
+            size_hint_x: 0.5
+            spacing: 10
+            Button:
+              font_size: 16
+              text: "+"
+              on_release: root.hour = root.hour + 1
+            Button:
+              font_size: 16
+              text: "-"
+              on_release: root.hour = root.hour - 1
+          Label:
+            id: hour
+            color: black
+            text: str(root.hour)
+            font_size: 48
+
+
+        BoxLayout:
+          orientation: "horizontal"
+          BoxLayout:
+            orientation: "vertical"
+            size_hint_x: 0.5
+            spacing: 10
+            Button:
+              font_size: 16
+              text: "+"
+              on_release: root.minutes = root.minutes + 1
+            Button:
+              font_size: 16
+              text: "-"
+              on_release: root.minutes = root.minutes - 1
+          Label:
+            id: minutes
+            color: black
+            text: str(root.minutes)
+            font_size: 48
+
+        BoxLayout:
+          orientation: "horizontal"
+          BoxLayout:
+            orientation: "vertical"
+            size_hint_x: 0.5
+            spacing: 10
+            Button:
+              font_size: 16
+              text: "+"
+              on_release: root.seconds = root.seconds + 1
+            Button:
+              font_size: 16
+              text: "-"
+              on_release: root.seconds = root.seconds - 1
+          Label:
+            id: seconds
+            color: black
+            text: str(root.seconds)
+            font_size: 48
+
+    Foot:
+      FootButton:
+        text: 'Voltar'
+        on_release: app.root.current = "filenumber"
+      FootButton:
+        text: u'Próximo'
+        on_release: app.root.current = "review"
+
+
+<Review>:
+  name: "review"
+  ScreenLayout:
+    Header:
+      text: u"Resumo da configuração: "
+
+    BoxLayout:
+      ReviewLabel:
+        text: u"Interface do Sniffer: "
+      ReviewContent:
+        id: reviewscaniface
+    BoxLayout:
+      ReviewLabel:
+        text: u"Interface do GPS: "
+      ReviewContent:
+        id: reviewgpsiface
+    BoxLayout:
+      ReviewLabel:
+        text: u"Número do arquivo: "
+      ReviewContent:
+        id: reviewfilename
+    BoxLayout:
+      ReviewLabel:
+        text: u"Data: "
+      ReviewContent:
+        id: reviewdate
+
+    Foot:
+      FootButton:
+        text: 'Voltar'
+        on_release: app.root.current = "datepicker"
+      FootButton:
+        text: u'Iniciar o Uai-Fi'
+        on_release: app.root.current = "start"
+
+
+<Start>:
+  name: "start"
+  ScreenLayout:
+    BoxLayout:
+      spacing: 10
+      Label:
+        size_hint_y: 0.8
+        font_size: secondfont
+        valign: "middle"
+        halign: "right"
+        color: black
+        text: u'Número de Beacons'
+      Label:
+        color: blue
+        valign: "middle"
+        halign: "right"
+        font_size: secondfont
+        text: "20"
+
+    BoxLayout:
+      spacing: 10
+      Label:
+        color: black
+        size_hint_y: 0.8
+        font_size: secondfont
+        valign: "middle"
+        halign: "right"
+        text: u'Número de Pacotes'
+      Label:
+        color: blue
+        font_size: secondfont
+        text: "40"
+        valign: "middle"
+        halign: "right"
+
+    Button:
+      size_hint_y: 1
+      font_size: footfontsize
+      text: u'Terminar Coleta'
+      on_release: Factory.ConfirmScanClose().open()
+
+
+<ConfirmExit@Popup>:
+  title: "Confirmar Término do Uai-Fi"
+  auto_dismiss: False
+  BoxLayout:
+    orientation: "vertical"
+    spacing: spsize
+    padding: pdsize
+
+    Button:
+      text: 'Voltar'
+      on_release: root.dismiss()
+
+    Button:
+      text: 'Terminar'
+      on_release: app.stop()
+
+
+<ConfirmScanClose@Popup>:
+  title: "Confirmar Término da Coleta"
+  auto_dismiss: False
+  BoxLayout:
+    orientation: "vertical"
+    spacing: spsize
+    padding: pdsize
+
+    Button:
+      text: 'Voltar'
+      on_release: root.dismiss()
+
+    Button:
+      text: 'Terminar'
+      on_release: root.dismiss(); app.root.current = "init"
