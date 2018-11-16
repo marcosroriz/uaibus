@@ -20,9 +20,9 @@ class CSVCommand:
     def __init__(self, output):
         log_date = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         outname  = "uaibus.out." + log_date + ".csv"
-        filename = os.path.join(output, outname)
+        filename = os.path.join(".", output)
 
-        self.csvfile   = open(filename, mode="xt")
+        self.csvfile   = open(filename, mode="a+")
         self.csvwriter = csv.writer(self.csvfile)
         self.pktcount  = 0
         self.pktlock   = RLock()
@@ -55,4 +55,3 @@ class CSVCommand:
     def close(self):
         self.csvfile.flush()
         self.csvfile.close()
-        self.csvwriter.close()
