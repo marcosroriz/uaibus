@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=UAI-FI
+Comment=
+Exec=env KIVY_BCM_DISPMANX_ID=4 python3 -m uaibus.gui
+Icon=nm-signal-100
+Path=/root/uaibus
+Terminal=false
+StartupNotify=false
