@@ -41,7 +41,7 @@ class Scan:
                 if pkt.addr2 is not None:
                     try:
                         macaddr = pkt.addr2
-                        rssistr = -(256 - ord(pkt.notdecoded[-4:-3]))
+                        rssistr = -(256 - ord(pkt.notdecoded[-2:-1]))
                         destaddr = pkt.info if pkt.info is not None else "undef"
 
                         pktdata = [macaddr, rssistr, destaddr]
@@ -67,7 +67,7 @@ class Scan:
         self.stopevent.set()
 
     def sniff(self):
-        sniff(iface=self.wiface, prn=self.poolhandler,
+        sniff(iface=self.wiface, prn=self.poolhandler, store=0,
               stop_filter=lambda x: self.stopevent.is_set())
 
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     logger = logging.getLogger("uaibus.scan")
     logger.setLevel(logging.DEBUG)
 
-    scan = Scan("wlp2s0mon")
+    scan = Scan("mon0")
     t = threading.Thread(target=scan.sniff)
     t.start()
 
