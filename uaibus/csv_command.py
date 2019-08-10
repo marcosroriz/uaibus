@@ -5,7 +5,6 @@ import csv
 import datetime
 import logging
 import os
-from threading import RLock
 
 
 class CSVCommand:
@@ -18,32 +17,35 @@ class CSVCommand:
     """
 
     def __init__(self, output):
-        log_date = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        self.initdate = datetime.datetime.now()
+        log_date = self.initdate.strftime('%Y-%m-%d-%H-%M-%S')
         outname  = "uaibus.out." + log_date + ".csv"
         filename = os.path.join(".", output)
 
         self.csvfile   = open(filename, mode="a+")
         self.csvwriter = csv.writer(self.csvfile)
-        self.pktcount  = 0
-        self.pktlock   = RLock()
         self.logger    = logging.getLogger("uaibus.csv_command")
 
         # Write Header
-        self.csvwriter.writerow(["pkgnumber", "date", "mac", "rssi", "dest",
+        self.csvwriter.writerow(["date", "indate", "mac", "rssi", "dest",
                                  "lat", "lng", "alt", "speed", "errorlat",
                                  "errorlng", "erroralt", "errorspeed"])
 
 
     def execute(self, data):
-        # Increment the pkt count
-        self.pktlock.acquire()
-        current_pkt_count = self.pktcount
-        self.pktcount = self.pktcount + 1
-        self.pktlock.release()
-
         # Put in csv format
-        current_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        csv_data = [current_pkt_count] + [current_date] + data
+        current_date = datetime.datetime.now()
+        current_date_formatted = current_date.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Delta
+        delta = current_date - self.initdate
+        totalSeconds = delta.seconds
+        hours, remainder = divmod(totalSeconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        delta_date_formatted = str(hours).rjust(2, '0') + ":" + str(minutes).rjust(2, '0') + ":" + str(seconds).rjust(2, '0')
+
+        # Out
+        csv_data = [delta_date_formatted] + [current_date_formatted] + data
 
         # Write to CSV
         self.csvwriter.writerow(csv_data)
@@ -51,6 +53,7 @@ class CSVCommand:
 
         # Write to CLI
         self.logger.info(csv_data)
+
 
     def close(self):
         self.csvfile.flush()

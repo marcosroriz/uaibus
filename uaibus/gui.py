@@ -5,6 +5,7 @@ import logging
 import threading
 from datetime import datetime
 from kivy.app import App
+from kivy.config import Config
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.properties import BoundedNumericProperty, NumericProperty, StringProperty
 from uaibus.cli import UaiController
@@ -21,6 +22,7 @@ Window.clearcolor = (1, 1, 1, 1)
 app = None
 
 # Logger
+# logging.basicConfig(level = logging.INFO)
 logger = logging.getLogger("uaibus")
 
 
@@ -31,16 +33,13 @@ def setuplog():
     logging.basicConfig(format=log_msg_format, datefmt=log_date_format)
     logger = logging.getLogger("uaibus")
     logger.setLevel(logging.INFO)
-    logger.error("HIH")
-    logger.info("Hdfadfsafsa")
 
 
 # Get GUI params
 def get_gui_params():
     moinface = str(app.root.get_screen("scaniface").moniface)
     gpsiface = str(app.root.get_screen("gpsiface").gpsiface)
-    filename = "uai-fi.out." + \
-               str(app.root.get_screen("filenumber").filenumber) + ".csv"
+    filename = "uai-fi.out." + str(app.root.get_screen("filenumber").filenumber) + ".csv"
 
     datepickscreen = app.root.get_screen("datepicker")
     datehour = datepickscreen.hour
@@ -60,7 +59,7 @@ class ScanIface(Screen):
 
 
 class GPSIface(Screen):
-    gpsiface = StringProperty("/dev/ttyUSB1")
+    gpsiface = StringProperty("/dev/ttyUSB0")
 
 
 class FileNumber(Screen):
@@ -85,6 +84,7 @@ class Review(Screen):
 class Start(Screen):
     pkgcount = NumericProperty(0)
 
+
     def run(self):
         # Boot config
         self.controller.boot()
@@ -92,12 +92,15 @@ class Start(Screen):
         # Enter main loop
         self.controller.loop(beaconcount=self.increment_pkg_count)
 
+
     def increment_pkg_count(self):
         self.pkgcount = self.pkgcount + 1
+
 
     def close(self):
         self.controller.close()
         app.root.current = "init"
+
 
     def on_enter(self):
         try:
@@ -137,9 +140,12 @@ class GuiApp(App):
 
 
 if __name__ == '__main__':
+    # Basic Config
+    Config.set('graphics', 'fullscreen', '0')
+    Config.set('graphics', 'window_state', 'maximized')
+
     # Setup Log
     setuplog()
-    logger.info("OIv2")
 
     # Start the GUI App
     app = GuiApp()

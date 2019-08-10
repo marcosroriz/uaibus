@@ -19,13 +19,16 @@ class UaiController:
         self.scheduler = ThreadPoolExecutor(max_workers=4)
         self.logger = logging.getLogger("uaibus")
 
+
     def handlepkt(self, pkt):
         data = pkt
         for c in self.commands:
             c.execute(data)
 
+
     def addcommand(self, command):
         self.commands.append(command)
+
 
     def boot(self):
         # Start GPS
@@ -35,17 +38,19 @@ class UaiController:
         self.t = threading.Thread(target=self.scan.sniff)
         self.t.start()
 
+
     def close(self):
         self.logger.info("Started Closing UAI-FI modules")
 
         self.run = False
         self.scan.close()
-        self.t.join()
+        # self.t.join()
         # self.gps.close()
         for c in self.commands:
             c.close()
 
         self.logger.info("Finished Closing UAI-FI modules")
+
 
     def loop(self, run=True, beaconcount=None):
         self.run = run

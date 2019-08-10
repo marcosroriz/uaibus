@@ -35,7 +35,6 @@ class Scan:
         self.stopevent = threading.Event()
 
     def pkthandler(self, pkt):
-        self.logger.info("Received pkt")
         if pkt.haslayer(Dot11):
             if pkt.type == 0 and pkt.subtype == 4:
                 if pkt.addr2 is not None:
@@ -51,10 +50,10 @@ class Scan:
                         self.logger.info("Adding pkt data to queue: " + pktstr)
                     except IndexError as iex:
                         self.logger.error("Index Error when parsing pkt")
-                        self.logger.error(iex)
+                        self.logger.error(str(iex))
                     except Exception as ex:
                         self.logger.error("Received an error when handling pkg")
-                        self.logger.error(ex)
+                        self.logger.error(str(ex))
 
     def readpacket(self):
         return self.pktqueue.get()
